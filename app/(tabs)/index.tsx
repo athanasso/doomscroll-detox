@@ -385,25 +385,33 @@ const styles = StyleSheet.create({
   cardLabelActive: {
     color: Brand.accent,
   },
-  timerRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  timerRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   colon: {
     fontSize: 36,
     fontWeight: "300",
     color: Brand.accent,
-    marginTop: -6,
+    marginTop: -10,
   },
-  digitBox: { alignItems: "center" as const },
+  digitBox: {
+    alignItems: "center" as const,
+    backgroundColor: "rgba(15,23,42,0.6)",
+    borderRadius: 14,
+    minWidth: 72,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+  },
   digitValue: {
     fontSize: 44,
     fontWeight: "700",
     color: Brand.textBright,
     fontVariant: ["tabular-nums"],
+    lineHeight: 50,
   },
   digitLabel: {
     fontSize: 10,
     color: Brand.muted,
     letterSpacing: 1.5,
-    marginTop: 2,
+    marginTop: 4,
   },
   scheduleHint: { fontSize: 12, color: Brand.muted, marginTop: 14 },
 
@@ -452,12 +460,13 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: Brand.accent,
     textAlign: "center",
+    lineHeight: 34,
   },
   statLabel: {
     fontSize: 12,
     color: Brand.muted,
     textAlign: "center",
-    marginTop: 2,
+    marginTop: 6,
   },
 
   // Nudge button

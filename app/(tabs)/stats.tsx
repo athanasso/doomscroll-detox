@@ -114,7 +114,7 @@ export default function StatsScreen() {
         </GlassCard>
 
         {/* Encouragement */}
-        <GlassCard padding={16}>
+        <GlassCard>
           <Text style={styles.encouragement}>
             You&apos;re doing great. Every minute reclaimed is a step toward
             better sleep and calmer mornings. 🌙

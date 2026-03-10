@@ -4,7 +4,7 @@ import { StyleSheet, View, type ViewProps } from "react-native";
 
 interface GlassCardProps extends ViewProps {
   children: React.ReactNode;
-  /** Extra padding (default 20) */
+  /** Extra padding (default 28) */
   padding?: number;
 }
 
@@ -15,7 +15,7 @@ interface GlassCardProps extends ViewProps {
 export function GlassCard({
   children,
   style,
-  padding = 20,
+  padding = 28,
   ...rest
 }: GlassCardProps) {
   return (
