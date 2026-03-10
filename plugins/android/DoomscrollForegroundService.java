@@ -33,7 +33,7 @@ public class DoomscrollForegroundService extends Service {
     private static final String CHANNEL_ID = "doomscroll_blocking";
     private static final int NOTIFICATION_ID = 9001;
     private static final String PREFS_NAME = "DoomscrollDetoxPrefs";
-    private static final long UPDATE_INTERVAL_MS = 10_000;
+    private static final long UPDATE_INTERVAL_MS = 3_000;
 
     private Handler handler;
     private NotificationManager notificationManager;
@@ -97,7 +97,14 @@ public class DoomscrollForegroundService extends Service {
 
     private void updateNotification() {
         if (notificationManager != null) {
-            notificationManager.notify(NOTIFICATION_ID, buildNotification());
+            Notification notification = buildNotification();
+            // Re-post as foreground to prevent dismissal on Android 13+
+            try {
+                startForeground(NOTIFICATION_ID, notification);
+            } catch (Exception e) {
+                // Fallback: just update the notification
+                notificationManager.notify(NOTIFICATION_ID, notification);
+            }
         }
     }
 
