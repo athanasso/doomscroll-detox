@@ -371,7 +371,7 @@ const styles = StyleSheet.create({
     backgroundColor: Brand.slateLight,
     borderColor: Brand.accent,
   },
-  modeBtnText: { fontSize: 12, color: Brand.muted },
+  modeBtnText: { fontSize: 11, color: Brand.muted, flexShrink: 1 },
   modeBtnTextActive: { color: Brand.textBright },
   removeBtn: {
     flexDirection: "row",

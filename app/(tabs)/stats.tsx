@@ -42,17 +42,17 @@ export default function StatsScreen() {
 
         {/* KPI row */}
         <View style={styles.kpiRow}>
-          <GlassCard style={styles.kpiCard} padding={16}>
+          <GlassCard style={styles.kpiCard} padding={20}>
             <TrendingUp size={20} color={Brand.success} />
             <Text style={styles.kpiValue}>{total}</Text>
             <Text style={styles.kpiLabel}>Min saved</Text>
           </GlassCard>
-          <GlassCard style={styles.kpiCard} padding={16}>
+          <GlassCard style={styles.kpiCard} padding={20}>
             <Zap size={20} color={Brand.warning} />
             <Text style={styles.kpiValue}>{totalDetours}</Text>
             <Text style={styles.kpiLabel}>Detours avoided</Text>
           </GlassCard>
-          <GlassCard style={styles.kpiCard} padding={16}>
+          <GlassCard style={styles.kpiCard} padding={20}>
             <BarChart3 size={20} color={Brand.accent} />
             <Text style={styles.kpiValue}>{avg}</Text>
             <Text style={styles.kpiLabel}>Daily avg</Text>
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
 
   // KPI
   kpiRow: { flexDirection: "row", gap: 10, marginBottom: 18 },
-  kpiCard: { flex: 1, alignItems: "center" as const, gap: 6 },
+  kpiCard: { flex: 1, alignItems: "center" as const, gap: 6, paddingVertical: 24 },
   kpiValue: { fontSize: 24, fontWeight: "700", color: Brand.textBright },
   kpiLabel: { fontSize: 11, color: Brand.muted, textAlign: "center" },
 
