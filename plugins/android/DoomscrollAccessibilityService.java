@@ -177,6 +177,11 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
         if (!isOurApp(pkg)) {
             maybeRefreshPrefs();
             if (isBlockingActive()) {
+                // Intercept clicks on forbidden tabs before the feed loads
+                if (eventType == AccessibilityEvent.TYPE_VIEW_CLICKED
+                        && blockedFeedPackages.contains(pkg)) {
+                    interceptForbiddenTabClick(pkg, event);
+                }
                 tryBlock(pkg, cls, event, isWindowChanged ? "event" : "content");
             }
         }
@@ -705,6 +710,62 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
             }
         }
         return count;
+    }
+
+    // ── Forbidden tab click interception ──────────────────────
+
+    /**
+     * Intercept clicks on forbidden tabs (Home, Reels, Shorts, etc.)
+     * and immediately redirect to a safe tab so the feed never loads.
+     * This makes the forbidden tabs feel "not clickable".
+     */
+    private void interceptForbiddenTabClick(String pkg, AccessibilityEvent event) {
+        // Get the text/description of the clicked node from the event
+        String clickedText = "";
+        if (event.getText() != null) {
+            for (CharSequence cs : event.getText()) {
+                if (cs != null) clickedText += cs.toString().toLowerCase() + " ";
+            }
+        }
+        CharSequence desc = event.getContentDescription();
+        if (desc != null) {
+            clickedText += desc.toString().toLowerCase();
+        }
+        if (clickedText.isEmpty()) return;
+
+        String[] forbiddenTabs;
+        switch (pkg) {
+            case "com.zhiliaoapp.musically":
+                forbiddenTabs = new String[]{"home", "friends"};
+                break;
+            case "com.instagram.android":
+                forbiddenTabs = new String[]{"reels"};
+                break;
+            case "com.google.android.youtube":
+                forbiddenTabs = new String[]{"shorts"};
+                break;
+            case "com.facebook.katana":
+                forbiddenTabs = new String[]{"reels", "watch", "video"};
+                break;
+            default:
+                return;
+        }
+
+        boolean isForbidden = false;
+        for (String tab : forbiddenTabs) {
+            if (clickedText.contains(tab)) {
+                isForbidden = true;
+                break;
+            }
+        }
+        if (!isForbidden) return;
+
+        long now = System.currentTimeMillis();
+        if (now - lastBlockTime < BLOCK_COOLDOWN_MS) return;
+
+        Log.i(TAG, ">>> INTERCEPT tab click [" + clickedText.trim() + "] in " + pkg);
+        lastBlockTime = now;
+        redirectToSafeScreen(pkg);
     }
 
     // ── Redirect to safe screen ───────────────────────────────
