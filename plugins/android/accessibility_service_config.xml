@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Configuration for Doomscroll Detox AccessibilityService.
+  Tells Android which event types to listen for and which packages to observe.
+  "packageNames" is left empty so we can monitor ALL apps and filter in code.
+-->
+<accessibility-service
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/doomscroll_a11y_description"
+    android:accessibilityEventTypes="typeAllMask"
+    android:accessibilityFeedbackType="feedbackGeneric"
+    android:accessibilityFlags="flagIncludeNotImportantViews|flagReportViewIds"
+    android:canRetrieveWindowContent="true"
+    android:notificationTimeout="50"
+    android:settingsActivity="com.athanasso.doomscrolldetox.MainActivity" />

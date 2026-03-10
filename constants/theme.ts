@@ -1,53 +1,81 @@
 /**
- * Below are the colors that are used in the app. The colors are defined in the light and dark mode.
- * There are many other ways to style your app. For example, [Nativewind](https://www.nativewind.dev/), [Tamagui](https://tamagui.dev/), [unistyles](https://reactnativeunistyles.vercel.app), etc.
+ * Doomscroll Detox — Theme & Colors
+ * Deep midnight blues, slate grays, and soft glow accents.
  */
 
-import { Platform } from 'react-native';
+import { Platform } from "react-native";
 
-const tintColorLight = '#0a7ea4';
-const tintColorDark = '#fff';
+// ── Brand palette ──────────────────────────────────────────────
+export const Brand = {
+  /** Primary background */
+  midnight: "#0f172a",
+  /** Card / surface */
+  slate: "#1e293b",
+  /** Elevated surface */
+  slateLight: "#334155",
+  /** Muted text */
+  muted: "#94a3b8",
+  /** Primary text */
+  text: "#e2e8f0",
+  /** Bright text */
+  textBright: "#f8fafc",
+  /** Accent – calming indigo glow */
+  accent: "#818cf8",
+  /** Accent variant */
+  accentSoft: "#6366f1",
+  /** Success / positive */
+  success: "#34d399",
+  /** Warning / caution */
+  warning: "#fbbf24",
+  /** Danger / blocking */
+  danger: "#f87171",
+  /** Glass border */
+  glassBorder: "rgba(148,163,184,0.15)",
+  /** Glass background */
+  glass: "rgba(30,41,59,0.65)",
+} as const;
+
+// ── Legacy theme support ──────────────────────────────────────
+const tintColorLight = "#0a7ea4";
+const tintColorDark = "#818cf8";
 
 export const Colors = {
   light: {
-    text: '#11181C',
-    background: '#fff',
+    text: "#11181C",
+    background: "#fff",
     tint: tintColorLight,
-    icon: '#687076',
-    tabIconDefault: '#687076',
+    icon: "#687076",
+    tabIconDefault: "#687076",
     tabIconSelected: tintColorLight,
   },
   dark: {
-    text: '#ECEDEE',
-    background: '#151718',
+    text: Brand.text,
+    background: Brand.midnight,
     tint: tintColorDark,
-    icon: '#9BA1A6',
-    tabIconDefault: '#9BA1A6',
+    icon: Brand.muted,
+    tabIconDefault: Brand.muted,
     tabIconSelected: tintColorDark,
   },
 };
 
 export const Fonts = Platform.select({
   ios: {
-    /** iOS `UIFontDescriptorSystemDesignDefault` */
-    sans: 'system-ui',
-    /** iOS `UIFontDescriptorSystemDesignSerif` */
-    serif: 'ui-serif',
-    /** iOS `UIFontDescriptorSystemDesignRounded` */
-    rounded: 'ui-rounded',
-    /** iOS `UIFontDescriptorSystemDesignMonospaced` */
-    mono: 'ui-monospace',
+    sans: "system-ui",
+    serif: "ui-serif",
+    rounded: "ui-rounded",
+    mono: "ui-monospace",
   },
   default: {
-    sans: 'normal',
-    serif: 'serif',
-    rounded: 'normal',
-    mono: 'monospace',
+    sans: "normal",
+    serif: "serif",
+    rounded: "normal",
+    mono: "monospace",
   },
   web: {
     sans: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
     serif: "Georgia, 'Times New Roman', serif",
-    rounded: "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
+    rounded:
+      "'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif",
     mono: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
   },
 });

@@ -1,50 +1,161 @@
-# Welcome to your Expo app 👋
+# Doomscroll Detox
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+A digital wellness Android app that helps you break the doomscrolling habit. Set a bedtime schedule or activate an instant shield to block distracting social media apps — with smart detection that can target just Reels, Shorts, and feeds while leaving messaging and profiles accessible.
 
-## Get started
+Built with **React Native / Expo** and a custom **Android Accessibility Service**.
 
-1. Install dependencies
+## Features
 
-   ```bash
-   npm install
-   ```
+### Bedtime Schedule (Doom Zone)
 
-2. Start the app
+Set a daily window (e.g. 10 PM – 7 AM) during which blocking is active. The schedule is enforced natively — it works even if the app is closed or the phone is restarted.
 
-   ```bash
-   npx expo start
-   ```
+### Quick Shield
 
-In the output, you'll find options to open the app in a
+One-tap toggle on the dashboard to activate blocking immediately, outside of scheduled hours.
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### Smart Blocking Modes
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
+For TikTok, Instagram, YouTube, and Facebook you can choose between:
 
-## Get a fresh project
+- **Block Entire App** — the app is completely inaccessible during the block window.
+- **Block Reels / Shorts** — only the addictive feed screens are blocked. Messaging, profiles, search, and other sections remain usable.
 
-When you're ready, run:
+All other apps added from the installed-apps list are always fully blocked.
 
-```bash
-npm run reset-project
+### Per-App Detection
+
+| App           | Feed-mode behaviour                                                      |
+| ------------- | ------------------------------------------------------------------------ |
+| **TikTok**    | Blocks by default; allows Inbox, Profile, and Settings screens           |
+| **Instagram** | Blocks the Reels tab only; Home feed, DMs, Profile, and Search stay open |
+| **YouTube**   | Blocks Shorts player and shelf; Home, Subscriptions, Library allowed     |
+| **Facebook**  | Blocks Reels and Watch; Home and Notifications allowed                   |
+
+### Custom App Blocking
+
+Add any installed app to the block list from the **Apps** tab. Search by name or package name. Custom apps are always fully blocked.
+
+### Breathing Exercise
+
+When you try to open a blocked app, a calming full-screen modal appears with:
+
+- An animated breathing circle (expand / contract)
+- A 10-second forced cooldown before you can dismiss
+- A gentle, non-judgmental message
+
+### Stats & Progress
+
+- Minutes saved this week (derived from real Android usage data)
+- Dopamine detours avoided
+- Daily average
+- Per-day bar charts (Mon–Sun)
+
+Requires **Usage Stats** permission for real data; shows zeros otherwise.
+
+### Daily Notifications
+
+- **Shield Activating** — notification when your Doom Zone starts
+- **Good Morning** — notification when it ends
+
+### Dashboard Warnings
+
+The home screen checks and warns about missing permissions:
+
+- Accessibility Service
+- Usage Stats access
+- Battery optimization exemption
+
+Each warning links directly to the relevant system settings page.
+
+## Architecture
+
+```
+React Native (Expo)
+  ├── app/(tabs)/         UI screens (Dashboard, Apps, Schedule, Stats)
+  ├── hooks/              State management, native sync, notifications
+  ├── components/         Glassmorphic cards, glow toggles, icons
+  └── modules/            Type-safe JS ↔ Native bridge
+
+Android Native (Java)
+  ├── AccessibilityService   Real-time UI tree scanning & feed detection
+  ├── PollReceiver           1-second alarm fallback (survives process death)
+  ├── ForegroundService      Keeps process alive, shows status notification
+  └── NativeModule           Bridge for permissions, usage stats, app list
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### Three-Layer Blocking
 
-## Learn more
+1. **AccessibilityService** — fires on every UI event, scans the full view tree with `getRootInActiveWindow()` to detect which screen the user is on. Instant response.
+2. **PollReceiver** — manifest-registered `BroadcastReceiver` triggered by `AlarmManager` every second. Queries the foreground app via `UsageStatsManager`. Catches idle scenarios where no accessibility events fire. Only handles full-block apps.
+3. **ForegroundService** — persistent notification that prevents Android from killing the process. Updates status every 10 seconds.
 
-To learn more about developing your project with Expo, look at the following resources:
+If the user is already inside a blocked app when bedtime activates, they are removed within ~1 second.
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+## Requirements
 
-## Join the community
+- Android device (not Expo Go — requires a development build)
+- Android 5.0+ (API 21+)
+- Permissions: Accessibility Service, Usage Stats access, battery optimization exemption
 
-Join our community of developers creating universal apps.
+## Getting Started
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+### Install dependencies
+
+```bash
+npm install
+```
+
+### Build the Android app
+
+```bash
+npx expo prebuild --clean
+npx expo run:android
+```
+
+The Expo plugin (`withDoomscrollService`) automatically:
+
+- Copies native Java files into the Android project
+- Registers the Accessibility Service, PollReceiver, and ForegroundService in the manifest
+- Adds all required permissions
+- Configures package visibility queries (Android 11+)
+
+### Development
+
+```bash
+npx expo start
+```
+
+> **Note:** Blocking features require a real Android device with a development build. Expo Go does not support custom native modules.
+
+### Generate Icons
+
+```bash
+node scripts/generate-icons.js
+```
+
+Generates all app icons (main, adaptive foreground/background/monochrome, favicon, splash) using the brand palette.
+
+## Tech Stack
+
+- **React Native 0.81** / **Expo SDK 54** with New Architecture enabled
+- **Expo Router** (file-based routing with typed routes)
+- **React Native Reanimated** for animations
+- **AsyncStorage** for state persistence
+- **Lucide** for icons
+- **Sharp** (dev) for icon generation
+- Custom Android native module (Java) with Expo config plugin
+
+## Brand
+
+| Token      | Value                     |
+| ---------- | ------------------------- |
+| Background | `#0f172a` (midnight blue) |
+| Accent     | `#818cf8` (indigo)        |
+| Danger     | `#f87171`                 |
+| Success    | `#34d399`                 |
+| Glass      | `rgba(30, 41, 59, 0.65)`  |
+
+## License
+
+MIT
