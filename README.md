@@ -27,12 +27,12 @@ All other apps added from the installed-apps list are always fully blocked.
 
 ### Per-App Detection
 
-| App           | Feed-mode behaviour                                                      |
-| ------------- | ------------------------------------------------------------------------ |
-| **TikTok**    | Blocks by default; allows Inbox, Profile, and Settings screens. Home and Friends tabs are visually hidden with overlays. |
+| App           | Feed-mode behaviour                                                                                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **TikTok**    | Blocks by default; allows Inbox, Profile, and Settings screens. Home and Friends tabs are visually hidden with overlays.                                           |
 | **Instagram** | Blocks the Reels tab and stories viewer; Reels tab is visually hidden. Home feed, DMs, Profile, and Search stay open. Stories tray is covered by a sticky overlay. |
-| **YouTube**   | Blocks Shorts player and shelf; Shorts tab is visually hidden. Home, Subscriptions, Library allowed. |
-| **Facebook**  | Blocks Reels and Watch; Video/Watch tab is visually hidden. Home and Notifications allowed. |
+| **YouTube**   | Blocks Shorts player and shelf; Shorts tab is visually hidden. Home, Subscriptions, Library allowed.                                                               |
+| **Facebook**  | Blocks Reels and Watch; Video/Watch tab is visually hidden. Home and Notifications allowed.                                                                        |
 
 ### Tab Overlay System
 
