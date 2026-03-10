@@ -10,8 +10,16 @@ import { GlowToggle } from "@/components/glow-toggle";
 import { Brand } from "@/constants/theme";
 import { useAppCtx } from "@/contexts/app-state-context";
 import { AlarmClock, Check } from "lucide-react-native";
-import React, { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 function pad(n: number) {
@@ -136,7 +144,13 @@ export default function ScheduleScreen() {
   );
 }
 
-// ── Minimal horizontal picker ──────────────────────────────────
+// ── Circular horizontal picker ─────────────────────────────────
+// Renders 3 copies of the data so the user can scroll past either
+// end and wrap around seamlessly. On mount we scroll to the middle
+// copy; when the user drifts into the first or last copy we silently
+// re-center to the middle.
+const ITEM_W = 48; // approx pressable width incl. gap
+
 function PickerWheel({
   data,
   value,
@@ -148,17 +162,51 @@ function PickerWheel({
   onChange: (v: number) => void;
   format: (v: number) => string;
 }) {
+  const scrollRef = useRef<ScrollView>(null);
+  const len = data.length;
+  const tripled = [...data, ...data, ...data]; // 3 copies
+
+  // Scroll to the selected item in the middle copy on mount
+  useEffect(() => {
+    const idx = data.indexOf(value);
+    if (idx >= 0 && scrollRef.current) {
+      const x = (len + idx) * ITEM_W;
+      scrollRef.current.scrollTo({ x, animated: false });
+    }
+    // Only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // When scrolling near edges, silently jump to the equivalent
+  // position in the middle copy so the list feels infinite.
+  const handleScrollEnd = useCallback(
+    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const x = e.nativeEvent.contentOffset.x;
+      const oneSetWidth = len * ITEM_W;
+      if (x < oneSetWidth * 0.3 || x > oneSetWidth * 2.2) {
+        // Re-center: find which logical item is closest
+        const logicalIdx = Math.round(x / ITEM_W) % len;
+        const centeredX = (len + logicalIdx) * ITEM_W;
+        scrollRef.current?.scrollTo({ x: centeredX, animated: false });
+      }
+    },
+    [len],
+  );
+
   return (
     <ScrollView
+      ref={scrollRef}
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.wheelContent}
+      onMomentumScrollEnd={handleScrollEnd}
+      onScrollEndDrag={handleScrollEnd}
     >
-      {data.map((item) => {
+      {tripled.map((item, i) => {
         const active = item === value;
         return (
           <Pressable
-            key={item}
+            key={`${item}-${i}`}
             onPress={() => onChange(item)}
             style={[styles.wheelItem, active && styles.wheelItemActive]}
           >
