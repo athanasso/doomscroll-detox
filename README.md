@@ -8,7 +8,9 @@ Built with **React Native / Expo** and a custom **Android Accessibility Service*
 
 ### Bedtime Schedule (Doom Zone)
 
-Set a daily window (e.g. 10 PM – 7 AM) during which blocking is active. The schedule is enforced natively — it works even if the app is closed or the phone is restarted.
+Set a daily window (e.g. 00:00 – 07:00) during which blocking is active. The schedule is enforced natively — it works even if the app is closed or the phone is restarted. Times are displayed in 24-hour format.
+
+When a block is active, the dashboard countdown switches from "Next Bedtime Block in" to **"Block ends in"** with a live countdown to the end time.
 
 ### Quick Shield
 
@@ -27,10 +29,19 @@ All other apps added from the installed-apps list are always fully blocked.
 
 | App           | Feed-mode behaviour                                                      |
 | ------------- | ------------------------------------------------------------------------ |
-| **TikTok**    | Blocks by default; allows Inbox, Profile, and Settings screens           |
-| **Instagram** | Blocks the Reels tab only; Home feed, DMs, Profile, and Search stay open |
-| **YouTube**   | Blocks Shorts player and shelf; Home, Subscriptions, Library allowed     |
-| **Facebook**  | Blocks Reels and Watch; Home and Notifications allowed                   |
+| **TikTok**    | Blocks by default; allows Inbox, Profile, and Settings screens. Home and Friends tabs are visually hidden with overlays. |
+| **Instagram** | Blocks the Reels tab and stories viewer; Reels tab is visually hidden. Home feed, DMs, Profile, and Search stay open. Stories tray is covered by a sticky overlay. |
+| **YouTube**   | Blocks Shorts player and shelf; Shorts tab is visually hidden. Home, Subscriptions, Library allowed. |
+| **Facebook**  | Blocks Reels and Watch; Video/Watch tab is visually hidden. Home and Notifications allowed. |
+
+### Tab Overlay System
+
+Forbidden tabs (e.g. TikTok Home/Friends, Instagram Reels, YouTube Shorts, Facebook Video/Watch) are visually hidden using `TYPE_ACCESSIBILITY_OVERLAY` windows that cover the tab buttons in the bottom navigation bar. The overlays:
+
+- Appear instantly when a feed-mode app opens (no-throttle 2s initial window with delayed re-scans)
+- Reposition smoothly via `updateViewLayout()` instead of teardown/rebuild
+- Track scroll events so the Instagram stories tray overlay follows the content
+- Are verified with UsageStats before removal to avoid false removals from notifications or toasts
 
 ### Custom App Blocking
 
@@ -43,6 +54,10 @@ When you try to open a blocked app, a calming full-screen modal appears with:
 - An animated breathing circle (expand / contract)
 - A 10-second forced cooldown before you can dismiss
 - A gentle, non-judgmental message
+
+### Schedule Picker
+
+The schedule screen uses circular horizontal pickers — scrolling past 23 wraps to 00 and vice versa, making overnight schedules easy to set.
 
 ### Stats & Progress
 
@@ -88,7 +103,7 @@ Android Native (Java)
 
 1. **AccessibilityService** — fires on every UI event, scans the full view tree with `getRootInActiveWindow()` to detect which screen the user is on. Instant response.
 2. **PollReceiver** — manifest-registered `BroadcastReceiver` triggered by `AlarmManager` every second. Queries the foreground app via `UsageStatsManager`. Catches idle scenarios where no accessibility events fire. Only handles full-block apps.
-3. **ForegroundService** — persistent notification that prevents Android from killing the process. Updates status every 10 seconds.
+3. **ForegroundService** — persistent notification that prevents Android from killing the process. Re-calls `startForeground()` every 3 seconds so the notification cannot be permanently dismissed on Android 13+. Displays count of blocked apps.
 
 If the user is already inside a blocked app when bedtime activates, they are removed within ~1 second.
 
