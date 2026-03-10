@@ -142,7 +142,12 @@ const styles = StyleSheet.create({
 
   // KPI
   kpiRow: { flexDirection: "row", gap: 10, marginBottom: 18 },
-  kpiCard: { flex: 1, alignItems: "center" as const, gap: 6, paddingVertical: 24 },
+  kpiCard: {
+    flex: 1,
+    alignItems: "center" as const,
+    gap: 6,
+    paddingVertical: 24,
+  },
   kpiValue: { fontSize: 24, fontWeight: "700", color: Brand.textBright },
   kpiLabel: { fontSize: 11, color: Brand.muted, textAlign: "center" },
 
