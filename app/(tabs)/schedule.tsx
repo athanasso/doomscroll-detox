@@ -6,7 +6,6 @@
  * entirely with React Native primitives.
  */
 import { GlassCard } from "@/components/glass-card";
-import { GlowToggle } from "@/components/glow-toggle";
 import { Brand } from "@/constants/theme";
 import { useAppCtx } from "@/contexts/app-state-context";
 import { AlarmClock, Check } from "lucide-react-native";
@@ -30,15 +29,12 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 const MINUTES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
 
 // ── time formatting helper ─────────────────────────────────────
-function formatTime(h: number, m: number, use24h: boolean) {
-  if (use24h) return `${pad(h)}:${pad(m)}`;
-  const period = h >= 12 ? "PM" : "AM";
-  const displayH = h % 12 === 0 ? 12 : h % 12;
-  return `${displayH}:${pad(m)} ${period}`;
+function formatTime(h: number, m: number) {
+  return `${pad(h)}:${pad(m)}`;
 }
 
 export default function ScheduleScreen() {
-  const { state, setSchedule, setUse24h } = useAppCtx();
+  const { state, setSchedule } = useAppCtx();
 
   const [startHour, setStartHour] = useState(state.schedule.startHour);
   const [startMinute, setStartMinute] = useState(state.schedule.startMinute);
@@ -67,23 +63,11 @@ export default function ScheduleScreen() {
           Set the hours when your shield activates automatically.
         </Text>
 
-        {/* 24h / 12h toggle */}
-        <GlassCard style={styles.card}>
-          <View style={styles.formatRow}>
-            <Text style={styles.formatLabel}>24-hour clock</Text>
-            <GlowToggle
-              value={state.use24h}
-              onValueChange={setUse24h}
-              activeColor={Brand.accent}
-            />
-          </View>
-        </GlassCard>
-
         {/* Start time */}
         <GlassCard style={styles.card}>
           <Text style={styles.label}>Block starts at</Text>
           <Text style={styles.preview}>
-            {formatTime(startHour, startMinute, state.use24h)}
+            {formatTime(startHour, startMinute)}
           </Text>
           <View style={styles.pickerRow}>
             <PickerWheel
@@ -106,7 +90,7 @@ export default function ScheduleScreen() {
         <GlassCard style={styles.card}>
           <Text style={styles.label}>Block ends at</Text>
           <Text style={styles.preview}>
-            {formatTime(endHour, endMinute, state.use24h)}
+            {formatTime(endHour, endMinute)}
           </Text>
           <View style={styles.pickerRow}>
             <PickerWheel
@@ -280,14 +264,4 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   saveBtnText: { fontSize: 16, fontWeight: "600", color: "#fff" },
-  formatRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  formatLabel: {
-    fontSize: 15,
-    fontWeight: "500",
-    color: Brand.text,
-  },
 });

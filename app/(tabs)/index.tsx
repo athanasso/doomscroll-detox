@@ -264,13 +264,9 @@ export default function DashboardScreen() {
             <TimerDigit label="SEC" value={s} />
           </View>
           <Text style={styles.scheduleHint}>
-            {state.use24h
-              ? `${pad(state.schedule.startHour)}:${pad(state.schedule.startMinute)}`
-              : `${state.schedule.startHour % 12 === 0 ? 12 : state.schedule.startHour % 12}:${pad(state.schedule.startMinute)} ${state.schedule.startHour >= 12 ? "PM" : "AM"}`}
+            {`${pad(state.schedule.startHour)}:${pad(state.schedule.startMinute)}`}
             {" \u2013 "}
-            {state.use24h
-              ? `${pad(state.schedule.endHour)}:${pad(state.schedule.endMinute)}`
-              : `${state.schedule.endHour % 12 === 0 ? 12 : state.schedule.endHour % 12}:${pad(state.schedule.endMinute)} ${state.schedule.endHour >= 12 ? "PM" : "AM"}`}
+            {`${pad(state.schedule.endHour)}:${pad(state.schedule.endMinute)}`}
           </Text>
         </GlassCard>
 
