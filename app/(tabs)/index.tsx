@@ -54,6 +54,31 @@ function secondsUntilBedtime(startHour: number, startMinute: number): number {
   return Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000));
 }
 
+function isInBedtimeBlock(
+  startH: number,
+  startM: number,
+  endH: number,
+  endM: number,
+): boolean {
+  const now = new Date();
+  const mins = now.getHours() * 60 + now.getMinutes();
+  const start = startH * 60 + startM;
+  const end = endH * 60 + endM;
+  // Overnight schedule (e.g. 22:00 – 07:00)
+  if (start > end) return mins >= start || mins < end;
+  // Same-day schedule (e.g. 13:00 – 15:00)
+  return mins >= start && mins < end;
+}
+
+function secondsUntilBlockEnd(endHour: number, endMinute: number): number {
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(endHour, endMinute, 0, 0);
+  // If end time is before now (overnight wrap), it's tomorrow
+  if (target <= now) target.setDate(target.getDate() + 1);
+  return Math.max(0, Math.floor((target.getTime() - now.getTime()) / 1000));
+}
+
 function fmtCountdown(totalSec: number) {
   const h = Math.floor(totalSec / 3600);
   const m = Math.floor((totalSec % 3600) / 60);
@@ -89,18 +114,45 @@ export default function DashboardScreen() {
     return () => sub.remove();
   }, []);
 
-  // Live countdown
-  const [remaining, setRemaining] = useState(
-    secondsUntilBedtime(state.schedule.startHour, state.schedule.startMinute),
+  // Detect if we're currently inside a bedtime block
+  const [blockActive, setBlockActive] = useState(
+    isInBedtimeBlock(
+      state.schedule.startHour,
+      state.schedule.startMinute,
+      state.schedule.endHour,
+      state.schedule.endMinute,
+    ),
+  );
+
+  // Live countdown – switches between "starts in" and "ends in"
+  const [remaining, setRemaining] = useState(() =>
+    blockActive
+      ? secondsUntilBlockEnd(state.schedule.endHour, state.schedule.endMinute)
+      : secondsUntilBedtime(
+          state.schedule.startHour,
+          state.schedule.startMinute,
+        ),
   );
 
   useEffect(() => {
     const id = setInterval(() => {
+      const active = isInBedtimeBlock(
+        state.schedule.startHour,
+        state.schedule.startMinute,
+        state.schedule.endHour,
+        state.schedule.endMinute,
+      );
+      setBlockActive(active);
       setRemaining(
-        secondsUntilBedtime(
-          state.schedule.startHour,
-          state.schedule.startMinute,
-        ),
+        active
+          ? secondsUntilBlockEnd(
+              state.schedule.endHour,
+              state.schedule.endMinute,
+            )
+          : secondsUntilBedtime(
+              state.schedule.startHour,
+              state.schedule.startMinute,
+            ),
       );
     }, 1000);
     return () => clearInterval(id);
@@ -193,8 +245,17 @@ export default function DashboardScreen() {
         )}
 
         {/* Countdown card */}
-        <GlassCard style={styles.countdownCard}>
-          <Text style={styles.cardLabel}>Next Bedtime Block in</Text>
+        <GlassCard
+          style={[
+            styles.countdownCard,
+            blockActive && styles.countdownCardActive,
+          ]}
+        >
+          <Text
+            style={[styles.cardLabel, blockActive && styles.cardLabelActive]}
+          >
+            {blockActive ? "Block ends in" : "Next Bedtime Block in"}
+          </Text>
           <View style={styles.timerRow}>
             <TimerDigit label="HRS" value={h} />
             <Text style={styles.colon}>:</Text>
@@ -310,12 +371,19 @@ const styles = StyleSheet.create({
 
   // Countdown
   countdownCard: { marginBottom: 16, alignItems: "center" as const },
+  countdownCardActive: {
+    borderWidth: 1,
+    borderColor: Brand.accent,
+  },
   cardLabel: {
     fontSize: 13,
     color: Brand.muted,
     marginBottom: 12,
     textTransform: "uppercase",
     letterSpacing: 1,
+  },
+  cardLabelActive: {
+    color: Brand.accent,
   },
   timerRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   colon: {
