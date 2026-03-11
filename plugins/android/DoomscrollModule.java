@@ -72,7 +72,8 @@ public class DoomscrollModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void syncBlockedApps(ReadableArray fullPackages, ReadableArray feedPackages, boolean active, Promise promise) {
         try {
-            SharedPreferences prefs = getReactApplicationContext()
+            Context ctx = getReactApplicationContext();
+            SharedPreferences prefs = ctx
                     .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
 
             JSONArray fullArr = new JSONArray();
@@ -92,7 +93,14 @@ public class DoomscrollModule extends ReactContextBaseJavaModule {
                     .apply();
 
             // Restart foreground service to refresh notification text
-            DoomscrollForegroundService.start(getReactApplicationContext());
+            DoomscrollForegroundService.start(ctx);
+
+            // Start or stop poll alarm based on blocking state
+            if (active || isInSchedule(prefs)) {
+                DoomscrollPollReceiver.scheduleNext(ctx);
+            } else {
+                DoomscrollPollReceiver.cancelAlarm(ctx);
+            }
 
             promise.resolve(true);
         } catch (Exception e) {
@@ -112,16 +120,37 @@ public class DoomscrollModule extends ReactContextBaseJavaModule {
     @ReactMethod
     public void syncSchedule(int startMinutes, int endMinutes, Promise promise) {
         try {
-            SharedPreferences prefs = getReactApplicationContext()
+            Context ctx = getReactApplicationContext();
+            SharedPreferences prefs = ctx
                     .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
             prefs.edit()
                     .putInt("schedule_start", startMinutes)
                     .putInt("schedule_end", endMinutes)
                     .apply();
+
+            // Start or stop poll alarm based on updated schedule
+            boolean quickShield = prefs.getBoolean("blocking_active", false);
+            if (quickShield || isInSchedule(prefs)) {
+                DoomscrollPollReceiver.scheduleNext(ctx);
+            } else {
+                DoomscrollPollReceiver.cancelAlarm(ctx);
+            }
+
             promise.resolve(true);
         } catch (Exception e) {
             promise.reject("SYNC_ERROR", e.getMessage());
         }
+    }
+
+    /** Helper: check if the current time falls within the saved schedule */
+    private boolean isInSchedule(SharedPreferences prefs) {
+        int startMinutes = prefs.getInt("schedule_start", -1);
+        int endMinutes = prefs.getInt("schedule_end", -1);
+        if (startMinutes < 0 || endMinutes < 0) return false;
+        Calendar cal = Calendar.getInstance();
+        int now = cal.get(Calendar.HOUR_OF_DAY) * 60 + cal.get(Calendar.MINUTE);
+        if (startMinutes <= endMinutes) return now >= startMinutes && now < endMinutes;
+        return now >= startMinutes || now < endMinutes;
     }
 
     // ── Accessibility service status ──────────────────────────

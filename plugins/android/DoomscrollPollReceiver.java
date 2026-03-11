@@ -8,7 +8,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
-import android.os.PowerManager;
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -38,6 +37,7 @@ public class DoomscrollPollReceiver extends BroadcastReceiver {
     private static final String TAG = "DoomscrollA11y";
     static final String ACTION_POLL = "com.doomscrolldetox.ACTION_POLL";
     private static final String PREFS_NAME = "DoomscrollDetoxPrefs";
+    private static final long POLL_INTERVAL_MS = 5000;
 
     private static long pollCount = 0;
     private static long lastBlockTime = 0;
@@ -45,29 +45,29 @@ public class DoomscrollPollReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        PowerManager pm = (PowerManager) context.getSystemService(Context.POWER_SERVICE);
-        PowerManager.WakeLock wl = pm.newWakeLock(
-                PowerManager.PARTIAL_WAKE_LOCK, "DoomscrollDetox::PollWake");
-        wl.acquire(3000); // max 3 seconds
-
         try {
             pollCount++;
-            if (pollCount % 30 == 1) {
+            if (pollCount % 60 == 1) {
                 Log.i(TAG, "PollReceiver #" + pollCount);
             }
-            doCheck(context);
+
+            // Only do work and reschedule if blocking is active
+            if (isBlockingActive(context)) {
+                doCheck(context);
+                scheduleNext(context);
+            } else {
+                // Blocking not active — stop polling to save battery.
+                // Polling will be restarted when blocking is toggled on.
+                if (pollCount % 60 == 1) {
+                    Log.i(TAG, "PollReceiver: blocking not active, stopping alarm chain");
+                }
+            }
         } catch (Exception e) {
             Log.e(TAG, "PollReceiver error", e);
-        } finally {
-            scheduleNext(context);
-            if (wl.isHeld())
-                wl.release();
         }
     }
 
     private void doCheck(Context context) {
-        if (!isBlockingActive(context))
-            return;
 
         String fg = queryCurrentForeground(context);
         if (fg == null || fg.isEmpty())
@@ -179,7 +179,7 @@ public class DoomscrollPollReceiver extends BroadcastReceiver {
         PendingIntent pi = PendingIntent.getBroadcast(context, 0, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        long triggerAt = SystemClock.elapsedRealtime() + 1000;
+        long triggerAt = SystemClock.elapsedRealtime() + POLL_INTERVAL_MS;
         try {
             am.setExactAndAllowWhileIdle(
                     AlarmManager.ELAPSED_REALTIME_WAKEUP, triggerAt, pi);

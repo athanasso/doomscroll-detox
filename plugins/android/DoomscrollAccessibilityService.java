@@ -16,7 +16,6 @@ import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Rect;
 import android.net.Uri;
-import android.os.PowerManager;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -51,7 +50,7 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
     private static final long FEED_CHECK_THROTTLE_MS = 300;
 
     private static final long PREFS_REFRESH_INTERVAL_MS = 2000;
-    private static final long USAGE_CHECK_THROTTLE_MS = 400;
+    private static final long USAGE_CHECK_THROTTLE_MS = 1000;
     private final Set<String> blockedFullPackages = new HashSet<>();
     private final Set<String> blockedFeedPackages = new HashSet<>();
     private long lastBlockTime = 0;
@@ -61,7 +60,6 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
 
     private long lastPrefsRefresh = 0;
 
-    private PowerManager.WakeLock wakeLock;
     // Track the current foreground activity class name (set on
     // WINDOW_STATE_CHANGED)
     private String currentFgActivity = "";
@@ -94,12 +92,13 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
 
         try {
             AccessibilityServiceInfo info = new AccessibilityServiceInfo();
-            info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
+            info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                    | AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                    | AccessibilityEvent.TYPE_VIEW_CLICKED;
             info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
             info.flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
-                    | AccessibilityServiceInfo.FLAG_INCLUDE_NOT_IMPORTANT_VIEWS
                     | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
-            info.notificationTimeout = 50;
+            info.notificationTimeout = 100;
             setServiceInfo(info);
         } catch (Exception e) {
             Log.e(TAG, "Failed to set service info", e);
@@ -110,26 +109,20 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
 
         DoomscrollForegroundService.start(this);
 
-        PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
-        if (pm != null) {
-            wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK,
-                    "DoomscrollDetox::PollingLock");
-            wakeLock.acquire();
-            Log.i(TAG, "WakeLock acquired");
+        // Only start polling if blocking is currently active
+        if (isBlockingActive()) {
+            DoomscrollPollReceiver.scheduleNext(this);
+            Log.i(TAG, "Alarm polling started (blocking active)");
+        } else {
+            Log.i(TAG, "Polling deferred (blocking not active)");
         }
-
-        DoomscrollPollReceiver.scheduleNext(this);
-        Log.i(TAG, "Alarm polling started");
     }
 
     @Override
     public void onDestroy() {
         Log.i(TAG, "onDestroy called");
+        DoomscrollPollReceiver.cancelAlarm(this);
         super.onDestroy();
-        if (wakeLock != null && wakeLock.isHeld()) {
-            wakeLock.release();
-            Log.i(TAG, "WakeLock released");
-        }
     }
 
     // ── Accessibility events ─────────────────────────────────
@@ -186,7 +179,11 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
             }
         }
 
-        checkViaUsageStats();
+        // Only run UsageStats check when blocking is active and the event
+        // comes from an app that could be blocked (avoids unnecessary work)
+        if (isBlockingActive() && isBlocked(pkg)) {
+            checkViaUsageStats();
+        }
     }
 
     private void checkViaUsageStats() {

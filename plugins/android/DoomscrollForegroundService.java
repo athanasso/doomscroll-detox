@@ -33,7 +33,7 @@ public class DoomscrollForegroundService extends Service {
     private static final String CHANNEL_ID = "doomscroll_blocking";
     private static final int NOTIFICATION_ID = 9001;
     private static final String PREFS_NAME = "DoomscrollDetoxPrefs";
-    private static final long UPDATE_INTERVAL_MS = 3_000;
+    private static final long UPDATE_INTERVAL_MS = 30_000;
 
     private Handler handler;
     private NotificationManager notificationManager;
