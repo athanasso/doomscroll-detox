@@ -140,7 +140,6 @@ public class DoomscrollForegroundService extends Service {
 
         String title;
         String text;
-        int icon;
 
         // Count enabled blocked apps
         String fullJson = prefs.getString("blocked_packages_full", "[]");
@@ -159,15 +158,20 @@ public class DoomscrollForegroundService extends Service {
         if (quickShield) {
             title = "\uD83D\uDEE1\uFE0F Shield Active";
             text = "Quick Shield is on \u2014 " + appLabel + " blocked";
-            icon = android.R.drawable.ic_lock_lock;
         } else if (scheduled) {
             title = "\uD83C\uDF19 Bedtime Block Active";
             text = "Scheduled blocking is running \u2014 " + appLabel + " blocked";
-            icon = android.R.drawable.ic_lock_lock;
         } else {
             title = "Doomscroll Detox";
-            text = "Standing by — no apps are being blocked";
-            icon = android.R.drawable.ic_menu_recent_history;
+            text = "Standing by \u2014 no apps are being blocked";
+        }
+
+        // Use the app's own notification icon (installed by expo-notifications plugin)
+        int icon = getResources().getIdentifier(
+                "notification_icon", "drawable", getPackageName());
+        if (icon == 0) {
+            // Fallback if the resource isn't found
+            icon = android.R.drawable.ic_lock_lock;
         }
 
         Notification.Builder builder;
@@ -181,6 +185,7 @@ public class DoomscrollForegroundService extends Service {
                 .setContentTitle(title)
                 .setContentText(text)
                 .setSmallIcon(icon)
+                .setColor(0xFF818CF8) // Match the notification accent color
                 .setContentIntent(contentIntent)
                 .setOngoing(true)
                 .setAutoCancel(false)
