@@ -39,14 +39,7 @@
           }
         }
       ],
-      "./plugins/withDoomscrollService",
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/images/android-icon-monochrome.png",
-          "color": "#818cf8"
-        }
-      ]
+      "./plugins/withDoomscrollService"
     ],
     "experiments": {
       "typedRoutes": true,

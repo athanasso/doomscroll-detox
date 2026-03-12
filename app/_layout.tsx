@@ -5,7 +5,7 @@ import "react-native-reanimated";
 
 import { Brand } from "@/constants/theme";
 import { AppStateProvider, useAppCtx } from "@/contexts/app-state-context";
-import { useNotifications } from "@/hooks/use-notifications";
+
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -38,7 +38,7 @@ function InnerLayout() {
 
   // Schedule bedtime notifications whenever the schedule or app list changes
   const blockedAppCount = state.blockedApps.filter((a) => a.enabled).length;
-  useNotifications(state.schedule, loaded, blockedAppCount);
+
 
   // While loading state from AsyncStorage, show nothing
   if (!loaded) return null;

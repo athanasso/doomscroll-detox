@@ -62,6 +62,31 @@ function withCopyNativeFiles(config) {
         RES_XML_DIR_RELATIVE,
       );
 
+      // Notification icon (since we removed expo-notifications)
+      try {
+        const srcIconPath = path.join(
+          cfg.modRequest.projectRoot,
+          "assets",
+          "images",
+          "android-icon-monochrome.png",
+        );
+        const destIconDir = path.join(
+          androidDir,
+          "app",
+          "src",
+          "main",
+          "res",
+          "drawable",
+        );
+        fs.mkdirSync(destIconDir, { recursive: true });
+        fs.copyFileSync(
+          srcIconPath,
+          path.join(destIconDir, "notification_icon.png"),
+        );
+      } catch (e) {
+        console.warn("Failed to copy notification icon:", e);
+      }
+
       return cfg;
     },
   ]);
