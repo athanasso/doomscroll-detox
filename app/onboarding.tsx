@@ -18,6 +18,8 @@ import {
   isAccessibilityEnabled,
   openAccessibilitySettings,
   openUsageStatsSettings,
+  isBatteryOptimized,
+  requestIgnoreBatteryOptimizations,
 } from "@/modules/doomscroll-native";
 import { useRouter } from "expo-router";
 import {
@@ -26,6 +28,7 @@ import {
   ChevronRight,
   Moon,
   Shield,
+  Battery,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -34,6 +37,9 @@ import {
   StyleSheet,
   Text,
   View,
+  Platform,
+  PermissionsAndroid,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -43,15 +49,19 @@ export default function OnboardingScreen() {
 
   const [a11yOk, setA11yOk] = useState(false);
   const [usageOk, setUsageOk] = useState(false);
+  const [batteryOk, setBatteryOk] = useState(false);
+  const [step, setStep] = useState(1);
 
   // Check permission status
   const refresh = useCallback(async () => {
-    const [a, u] = await Promise.all([
+    const [a, u, optimized] = await Promise.all([
       isAccessibilityEnabled(),
       hasUsageStatsPermission(),
+      isBatteryOptimized(),
     ]);
     setA11yOk(a);
     setUsageOk(u);
+    setBatteryOk(!optimized);
   }, []);
 
   // Poll when app comes to foreground (user returning from Settings)
@@ -63,76 +73,119 @@ export default function OnboardingScreen() {
     return () => sub.remove();
   }, [refresh]);
 
-  const allDone = a11yOk && usageOk;
+  const allDone = a11yOk && usageOk && batteryOk;
 
-  const finish = useCallback(() => {
+  const finish = useCallback(async () => {
+    if (Platform.OS === "android" && Platform.Version >= 33) {
+      try {
+        await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+          {
+            title: "Notification Permission",
+            message: "Doomscroll Detox needs this to keep its blocking service alive and show you when it's active.",
+            buttonNeutral: "Ask Me Later",
+            buttonNegative: "Cancel",
+            buttonPositive: "OK"
+          }
+        );
+      } catch (err) {}
+    }
+
     setOnboardingDone(true);
     router.replace("/(tabs)");
   }, [setOnboardingDone, router]);
 
   return (
     <SafeAreaView style={styles.safe} edges={["top", "bottom"]}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
           <Moon size={36} color={Brand.accent} />
           <Text style={styles.title}>Welcome to{"\n"}Doomscroll Detox</Text>
           <Text style={styles.subtitle}>
-            We need two permissions to protect your sleep. Tap each card to open
-            Settings, then come back here.
+            We need three permissions to aggressively protect your sleep. Tap each card to configure Settings, then come back here.
           </Text>
         </View>
 
-        {/* Step 1 – Accessibility */}
-        <PermissionCard
-          icon={
-            <Shield size={24} color={a11yOk ? Brand.success : Brand.accent} />
-          }
-          title="Accessibility Service"
-          description="Detects when you open a blocked app and redirects you to a calming breathing exercise."
-          granted={a11yOk}
-          onPress={() => openAccessibilitySettings()}
-        />
-
-        {/* Step 2 – Usage Stats */}
-        <PermissionCard
-          icon={
-            <BarChart3
-              size={24}
-              color={usageOk ? Brand.success : Brand.accent}
+        {step === 1 ? (
+          <>
+            {/* Step 1 – Accessibility */}
+            <PermissionCard
+              icon={<Shield size={24} color={a11yOk ? Brand.success : Brand.accent} />}
+              title="Accessibility Service"
+              description="Detects when you open a blocked app and redirects you to a calming breathing exercise."
+              granted={a11yOk}
+              onPress={() => openAccessibilitySettings()}
             />
-          }
-          title="Usage Stats Access"
-          description="Reads how much time you spend on social apps so your Stats screen shows real data."
-          granted={usageOk}
-          onPress={() => openUsageStatsSettings()}
-        />
+
+            {/* Step 2 – Usage Stats */}
+            <PermissionCard
+              icon={<BarChart3 size={24} color={usageOk ? Brand.success : Brand.accent} />}
+              title="Usage Stats Access"
+              description="Reads how much time you spend on social apps so your Stats screen shows real data."
+              granted={usageOk}
+              onPress={() => openUsageStatsSettings()}
+            />
+
+            {/* Step 3 – Battery */}
+            <PermissionCard
+              icon={<Battery size={24} color={batteryOk ? Brand.success : Brand.accent} />}
+              title="Ignore Battery Limits"
+              description="Prevents Android from killing the blocking service while you sleep overnight."
+              granted={batteryOk}
+              onPress={() => requestIgnoreBatteryOptimizations()}
+            />
+          </>
+        ) : (
+          <View style={styles.guideContainer}>
+            <Text style={styles.guideHeader}>How it works</Text>
+            
+            <View style={styles.guideItem}>
+              <Text style={styles.guideItemTitle}>🛡️ Quick Shield & Bedtime</Text>
+              <Text style={styles.guideItemDesc}>Instantly block all distracting feeds, or set an automatic Bedtime Block schedule.</Text>
+            </View>
+            
+            <View style={styles.guideItem}>
+              <Text style={styles.guideItemTitle}>💬 Allowed Friends</Text>
+              <Text style={styles.guideItemDesc}>Need to reply to a friend? Only allow reels or messages sent directly to your DMs.</Text>
+            </View>
+            
+            <View style={styles.guideItem}>
+              <Text style={styles.guideItemTitle}>⏳ Anti-Scroll Limits</Text>
+              <Text style={styles.guideItemDesc}>Give yourself 1-30 minutes of scrolling before the app kicks you out to breathe.</Text>
+            </View>
+          </View>
+        )}
 
         {/* Spacer */}
-        <View style={{ flex: 1 }} />
+        <View style={styles.spacer} />
 
         {/* Continue / Skip */}
         <Pressable
-          onPress={finish}
+          onPress={() => {
+            if (step === 1) {
+              setStep(2);
+            } else {
+              finish();
+            }
+          }}
           style={({ pressed }) => [
             styles.continueBtn,
-            allDone && styles.continueBtnReady,
+            (step === 2 || allDone) && styles.continueBtnReady,
             pressed && { opacity: 0.8 },
           ]}
         >
-          <Text
-            style={[styles.continueText, allDone && styles.continueTextReady]}
-          >
-            {allDone ? "Let\u2019s Go!" : "Skip for now"}
+          <Text style={[styles.continueText, (step === 2 || allDone) && styles.continueTextReady]}>
+            {step === 1 ? (allDone ? "Next" : "Skip for now") : "Let\u2019s Go!"}
           </Text>
         </Pressable>
 
-        {!allDone && (
+        {step === 1 && !allDone && (
           <Text style={styles.skipHint}>
             You can grant permissions later from the app&apos;s settings.
           </Text>
         )}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -174,7 +227,7 @@ function PermissionCard({
 // ── Styles ─────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Brand.midnight },
-  container: { flex: 1, padding: 24 },
+  container: { flexGrow: 1, padding: 24 },
   header: { alignItems: "center", marginBottom: 32, marginTop: 24 },
   title: {
     fontSize: 28,
@@ -223,5 +276,34 @@ const styles = StyleSheet.create({
     color: Brand.muted,
     textAlign: "center",
     marginTop: 12,
+  },
+  spacer: {
+    flexGrow: 1,
+    minHeight: 20,
+  },
+  guideContainer: {
+    marginTop: 24,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+  },
+  guideHeader: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: Brand.textBright,
+    marginBottom: 16,
+  },
+  guideItem: {
+    marginBottom: 16,
+  },
+  guideItemTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: Brand.textBright,
+    marginBottom: 4,
+  },
+  guideItemDesc: {
+    fontSize: 13,
+    color: Brand.muted,
+    lineHeight: 18,
   },
 });

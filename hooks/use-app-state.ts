@@ -2,6 +2,8 @@ import {
   getWeeklyUsage,
   syncBlockedApps,
   syncSchedule,
+  isAccessibilityEnabled,
+  hasUsageStatsPermission,
 } from "@/modules/doomscroll-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -150,11 +152,28 @@ export function useAppState() {
     (async () => {
       try {
         const raw = await AsyncStorage.getItem(STORAGE_KEY);
-        if (raw && isMounted.current) {
-          setState({ ...DEFAULT_STATE, ...JSON.parse(raw) });
+        let hydratedState = { ...DEFAULT_STATE };
+        if (raw) {
+          hydratedState = { ...DEFAULT_STATE, ...JSON.parse(raw) };
+        }
+        
+        // Anti-Backup Dirty Reinstall Protection:
+        // If the system Google Drive auto-backup instantly restored our state
+        // on a fresh install, `onboardingDone` might be true even though Android
+        // wiped the real system permissions! We must query natively to confirm.
+        if (hydratedState.onboardingDone) {
+          const a11y = await isAccessibilityEnabled();
+          const usage = await hasUsageStatsPermission();
+          if (!a11y || !usage) {
+             hydratedState.onboardingDone = false;
+          }
+        }
+        
+        if (isMounted.current) {
+          setState(hydratedState);
         }
       } catch {
-        // first launch — use defaults
+        // use defaults on crash
       } finally {
         if (isMounted.current) setLoaded(true);
       }
@@ -286,8 +305,11 @@ export function useAppState() {
       }
     });
 
+    // Only sync if onboarding is actually finished, preventing service starts before permissions
+    if (!state.onboardingDone) return;
+    
     syncBlockedApps(fullPkgs, feedPkgs, shouldBlock, allowFriendPkgs, JSON.stringify(antiScrollConfig)).catch(() => {});
-  }, [state.blockedApps, state.quickShield, state.schedule, loaded]);
+  }, [state.blockedApps, state.quickShield, state.schedule, state.onboardingDone, loaded]);
 
   // ── Sync schedule to native so the AccessibilityService can check time ──
   useEffect(() => {
