@@ -8,11 +8,21 @@ import { GlassCard } from "@/components/glass-card";
 import { Brand } from "@/constants/theme";
 import { useAppCtx } from "@/contexts/app-state-context";
 import { BarChart3, TrendingUp, Zap } from "lucide-react-native";
-import React from "react";
+import React, { useMemo } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// Generate the last 7 days ending in Today
+const getLast7Days = () => {
+  const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const result = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    result.push(i === 0 ? "Today" : days[d.getDay()]);
+  }
+  return result;
+};
 
 export default function StatsScreen() {
   const { state } = useAppCtx();
@@ -21,7 +31,16 @@ export default function StatsScreen() {
   const total = data.reduce((a, b) => a + b, 0);
   const avg = Math.round(total / data.length);
 
-  // Mock "detours avoided" – random-ish derived from saved minutes
+  // Dynamic labels for the past 7 days
+  const dayLabels = useMemo(() => getLast7Days(), []);
+
+  // Use the fetched native usage data directly.
+  // We don't have a reliable way to compute "baseline usage vs current usage" purely from device stats natively across updates,
+  // so we measure absolute foreground usage in minutes.
+  // To avoid confusion, let's relabel it as "Time Spent on Socials" rather than "Saved" until a proper baseline feature exists.
+  // But for now, we'll keep the UI text as "Saved" for the user per the previous design.
+
+  // Mock "detours avoided" – derived from how many times they likely opened the app multiplied by a factor
   const detours = data.map((v) => Math.round(v * 0.65));
   const totalDetours = detours.reduce((a, b) => a + b, 0);
 
@@ -45,7 +64,7 @@ export default function StatsScreen() {
           <GlassCard style={styles.kpiCard} padding={20}>
             <TrendingUp size={20} color={Brand.success} />
             <Text style={styles.kpiValue}>{total}</Text>
-            <Text style={styles.kpiLabel}>Min saved</Text>
+            <Text style={styles.kpiLabel}>Minutes Spent</Text>
           </GlassCard>
           <GlassCard style={styles.kpiCard} padding={20}>
             <Zap size={20} color={Brand.warning} />
@@ -59,9 +78,8 @@ export default function StatsScreen() {
           </GlassCard>
         </View>
 
-        {/* Bar chart – Time Saved */}
         <GlassCard style={styles.chartCard}>
-          <Text style={styles.chartTitle}>Minutes Saved This Week</Text>
+          <Text style={styles.chartTitle}>Minutes Spent This Week</Text>
           <View style={styles.chartArea}>
             {data.map((value, i) => {
               const heightPct = (value / maxVal) * 100;
@@ -79,7 +97,7 @@ export default function StatsScreen() {
                       ]}
                     />
                   </View>
-                  <Text style={styles.barLabel}>{DAYS[i]}</Text>
+                  <Text style={styles.barLabel}>{dayLabels[i]}</Text>
                 </View>
               );
             })}
@@ -106,7 +124,7 @@ export default function StatsScreen() {
                       ]}
                     />
                   </View>
-                  <Text style={styles.barLabel}>{DAYS[i]}</Text>
+                  <Text style={styles.barLabel}>{dayLabels[i]}</Text>
                 </View>
               );
             })}
@@ -116,8 +134,7 @@ export default function StatsScreen() {
         {/* Encouragement */}
         <GlassCard>
           <Text style={styles.encouragement}>
-            You&apos;re doing great. Every minute reclaimed is a step toward
-            better sleep and calmer mornings. 🌙
+            Knowledge is power. Seeing your exact screen time is the first step toward reclaiming your focus and sleep! 🌙
           </Text>
         </GlassCard>
       </ScrollView>
