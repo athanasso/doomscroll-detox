@@ -70,7 +70,7 @@ public class DoomscrollModule extends ReactContextBaseJavaModule {
      * @param active        Whether blocking is currently active
      */
     @ReactMethod
-    public void syncBlockedApps(ReadableArray fullPackages, ReadableArray feedPackages, boolean active, Promise promise) {
+    public void syncBlockedApps(ReadableArray fullPackages, ReadableArray feedPackages, boolean active, ReadableArray allowFriendPkgs, Promise promise) {
         try {
             Context ctx = getReactApplicationContext();
             SharedPreferences prefs = ctx
@@ -86,10 +86,16 @@ public class DoomscrollModule extends ReactContextBaseJavaModule {
                 feedArr.put(feedPackages.getString(i));
             }
 
+            JSONArray allowArr = new JSONArray();
+            for (int i = 0; i < allowFriendPkgs.size(); i++) {
+                allowArr.put(allowFriendPkgs.getString(i));
+            }
+
             prefs.edit()
                     .putString("blocked_packages_full", fullArr.toString())
                     .putString("blocked_packages_feed", feedArr.toString())
                     .putBoolean("blocking_active", active)
+                    .putString("allow_friend_packages", allowArr.toString())
                     .apply();
 
             // Restart foreground service to refresh notification text

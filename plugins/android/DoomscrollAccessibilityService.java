@@ -45,6 +45,7 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
     private static final String KEY_BLOCKING_ACTIVE = "blocking_active";
     private static final String KEY_SCHEDULE_START = "schedule_start";
     private static final String KEY_SCHEDULE_END = "schedule_end";
+    private static final String KEY_ALLOW_FRIEND_REELS_PACKAGES = "allow_friend_packages";
 
     private static final long BLOCK_COOLDOWN_MS = 500;
     private static final long FEED_CHECK_THROTTLE_MS = 300;
@@ -57,6 +58,8 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
     private String myAppPackage = "";
     private String lastEventPkg = "";
     private long lastEventMillis = 0;
+
+    private final Set<String> allowFriendReelsPackages = new HashSet<>();
 
     private long lastPrefsRefresh = 0;
 
@@ -299,10 +302,19 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
         String cls = currentFgActivity.toLowerCase();
         if (pkg.equals("com.zhiliaoapp.musically")) {
             // TikTok: block unless the activity is clearly messaging
+            if (allowFriendReelsPackages.contains("com.zhiliaoapp.musically") && (cls.contains("detail") || cls.contains("awemedetail"))) {
+                return false;
+            }
             return !cls.contains("inbox") && !cls.contains("message")
                     && !cls.contains("profile") && !cls.contains("setting");
         }
         if (pkg.equals("com.instagram.android")) {
+            if (System.currentTimeMillis() - instagramRedirectTime < INSTAGRAM_GRACE_MS) {
+                return false;
+            }
+            if (allowFriendReelsPackages.contains("com.instagram.android") && (cls.contains("reel") || cls.contains("clips"))) {
+                return false; // Very generic, but without a tree we can't be sure it's not a friend reel. Better to allow than over-block.
+            }
             // Only block reels-specific screens, not home
             return cls.contains("reel");
         }
@@ -373,6 +385,14 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
         // This catches Friends tab where neither "For You" nor tab selection
         // is detectable, but we're still on the main video-feed activity
         if (cls.contains("mainactivity") || cls.contains("aweme") || cls.isEmpty()) {
+            if (allowFriendReelsPackages.contains("com.zhiliaoapp.musically")) {
+                if (cls.contains("detail") || cls.contains("awemedetail") 
+                    || hasTextInTree(root, "Reply to") || hasTextInTree(root, "Send message")
+                    || hasNodeWithDescContaining(root, "Back", 0, 5)) {
+                    Log.d(TAG, "TikTok: friend reel allowed");
+                    return false;
+                }
+            }
             Log.d(TAG, "TikTok: main activity, defaulting to BLOCK");
             return true;
         }
@@ -401,6 +421,11 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
 
         // Check for reels-specific view IDs
         if (hasViewIdInTree(root, "clips_viewer") || hasViewIdInTree(root, "reel_viewer")) {
+            boolean allowIgFriendReels = allowFriendReelsPackages.contains("com.instagram.android");
+            if (allowIgFriendReels && !isTabSelected(root, "Reels")) {
+                Log.d(TAG, "Instagram: reels viewer found but friend reel allowed → not feed");
+                return false;
+            }
             Log.d(TAG, "Instagram: reels viewer found → feed");
             return true;
         }
@@ -408,6 +433,11 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
         // Check activity class for reels-specific screens
         String cls = currentFgActivity.toLowerCase();
         if (cls.contains("reel") || cls.contains("clips")) {
+            boolean allowIgFriendReels = allowFriendReelsPackages.contains("com.instagram.android");
+            if (allowIgFriendReels && !isTabSelected(root, "Reels")) {
+                Log.d(TAG, "Instagram: reels activity class but friend reel allowed → not feed");
+                return false;
+            }
             Log.d(TAG, "Instagram: reels activity class → feed");
             return true;
         }
@@ -772,6 +802,12 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
      * Falls back to GLOBAL_ACTION_BACK if the tab can't be found.
      */
     private void redirectToSafeScreen(String pkg) {
+        if ("com.instagram.android".equals(pkg)) {
+            instagramRedirectTime = System.currentTimeMillis();
+            performGlobalAction(GLOBAL_ACTION_BACK);
+            return;
+        }
+
         AccessibilityNodeInfo root = getRootInActiveWindow();
         if (root != null) {
             try {
@@ -780,14 +816,6 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
                     case "com.zhiliaoapp.musically":
                         safeTabNames = new String[] { "Inbox", "Profile" };
                         break;
-                    case "com.instagram.android":
-                        // Just go back — tab clicking and deep links are unreliable
-                        // on Instagram. Set grace period so the back-navigated screen
-                        // has time to load before being re-checked.
-                        instagramRedirectTime = System.currentTimeMillis();
-                        root.recycle();
-                        performGlobalAction(GLOBAL_ACTION_BACK);
-                        return;
                     case "com.facebook.katana":
                         // "Home" first — "Menu" is the burger icon and must not be clicked
                         safeTabNames = new String[] { "Home", "Notifications" };
@@ -1081,11 +1109,15 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
             JSONArray feedArr = new JSONArray(prefs.getString(KEY_BLOCKED_FEED, "[]"));
             for (int i = 0; i < feedArr.length(); i++)
                 blockedFeedPackages.add(feedArr.getString(i));
+            JSONArray allowArr = new JSONArray(prefs.getString(KEY_ALLOW_FRIEND_REELS_PACKAGES, "[]"));
+            allowFriendReelsPackages.clear();
+            for (int i = 0; i < allowArr.length(); i++)
+                allowFriendReelsPackages.add(allowArr.getString(i));
         } catch (JSONException e) {
             Log.e(TAG, "Error parsing blocked packages", e);
         }
         if (!blockedFullPackages.equals(oldFull) || !blockedFeedPackages.equals(oldFeed)) {
-            Log.i(TAG, "Blocks updated: full=" + blockedFullPackages + " feed=" + blockedFeedPackages);
+            Log.i(TAG, "Blocks updated: full=" + blockedFullPackages + " feed=" + blockedFeedPackages + " allowFriends=" + allowFriendReelsPackages);
         }
     }
 }

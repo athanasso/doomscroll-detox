@@ -32,7 +32,7 @@ interface InstalledApp {
 }
 
 export default function AppSelectorScreen() {
-  const { state, toggleApp, setAppBlockMode, addApp, removeApp } = useAppCtx();
+  const { state, toggleApp, setAppBlockMode, addApp, removeApp, setAppAllowFriendReels } = useAppCtx();
   const [showAddModal, setShowAddModal] = useState(false);
 
   return (
@@ -112,6 +112,22 @@ export default function AppSelectorScreen() {
                       onPress={() => setAppBlockMode(app.id, "feed")}
                     />
                   </View>
+
+                  {app.blockMode === "feed" && (app.id === "tiktok" || app.id === "instagram") && (
+                    <View style={styles.friendReelsRow}>
+                        <View style={styles.appNameCol}>
+                          <Text style={styles.friendReelsName}>Allow Reels from Messages</Text>
+                          <Text style={styles.friendReelsPkg}>
+                            Don't block Reels/Shorts shared by friends in messages
+                          </Text>
+                        </View>
+                        <GlowToggle
+                          value={!!app.allowFriendReels}
+                          onValueChange={(val) => setAppAllowFriendReels(app.id, val)}
+                          activeColor={Brand.accent}
+                        />
+                    </View>
+                  )}
                 </View>
               )}
 
@@ -278,7 +294,6 @@ function AddAppModal({
               <Pressable
                 onPress={() => {
                   setSelectedApp(item);
-                  setSelectedMode("full");
                 }}
                 style={({ pressed }) => [
                   styles.appRow,
@@ -352,6 +367,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Brand.muted,
     marginTop: 1,
+  },
+  friendReelsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.05)",
+  },
+  friendReelsName: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: Brand.textBright,
+  },
+  friendReelsPkg: {
+    fontSize: 12,
+    color: Brand.muted,
+    marginTop: 2,
   },
   modeCol: { gap: 10, marginTop: 14 },
   modeRow: { flexDirection: "row", gap: 10 },

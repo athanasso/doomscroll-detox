@@ -17,6 +17,7 @@ interface NativeModType {
     fullPkgs: string[],
     feedPkgs: string[],
     active: boolean,
+    allowFriendPkgs: string[],
   ) => Promise<boolean>;
   isAccessibilityEnabled: () => Promise<boolean>;
   openAccessibilitySettings: () => Promise<boolean>;
@@ -72,8 +73,9 @@ export async function syncBlockedApps(
   fullPackages: string[],
   feedPackages: string[],
   active: boolean,
+  allowFriendPkgs: string[],
 ): Promise<void> {
-  await NativeMod.syncBlockedApps(fullPackages, feedPackages, active);
+  await NativeMod.syncBlockedApps(fullPackages, feedPackages, active, allowFriendPkgs);
 }
 
 export async function isAccessibilityEnabled(): Promise<boolean> {

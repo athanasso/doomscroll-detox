@@ -15,6 +15,7 @@ export interface BlockedApp {
   /** Block entire app, or block Reels/Shorts/feed tabs only */
   blockMode: "full" | "feed";
   enabled: boolean;
+  allowFriendReels?: boolean;
 }
 
 export interface Schedule {
@@ -172,6 +173,17 @@ export function useAppState() {
     [],
   );
 
+  const setAppAllowFriendReels = useCallback(
+    (id: string, allow: boolean) =>
+      setState((s) => ({
+        ...s,
+        blockedApps: s.blockedApps.map((a) =>
+          a.id === id ? { ...a, allowFriendReels: allow } : a,
+        ),
+      })),
+    [],
+  );
+
   const toggleApp = useCallback(
     (id: string) =>
       setState((s) => ({
@@ -244,7 +256,11 @@ export function useAppState() {
       .filter((a) => a.enabled && a.blockMode === "feed")
       .map((a) => a.packageName);
 
-    syncBlockedApps(fullPkgs, feedPkgs, shouldBlock).catch(() => {});
+    const allowFriendPkgs = state.blockedApps
+      .filter((a) => a.allowFriendReels)
+      .map((a) => a.packageName);
+
+    syncBlockedApps(fullPkgs, feedPkgs, shouldBlock, allowFriendPkgs).catch(() => {});
   }, [state.blockedApps, state.quickShield, state.schedule, loaded]);
 
   // ── Sync schedule to native so the AccessibilityService can check time ──
@@ -281,6 +297,7 @@ export function useAppState() {
     state,
     loaded,
     setQuickShield,
+    setAppAllowFriendReels,
     toggleApp,
     setAppBlockMode,
     setSchedule,
