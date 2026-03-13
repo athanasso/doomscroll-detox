@@ -16,6 +16,9 @@ export interface BlockedApp {
   blockMode: "full" | "feed";
   enabled: boolean;
   allowFriendReels?: boolean;
+  antiScrollEnabled?: boolean;
+  antiScrollSeconds?: number;
+  antiScrollWarningSeconds?: number;
 }
 
 export interface Schedule {
@@ -184,6 +187,22 @@ export function useAppState() {
     [],
   );
 
+  const setAppAntiScroll = useCallback(
+    (id: string, enabled: boolean, seconds?: number, warningSeconds?: number) =>
+      setState((s) => ({
+        ...s,
+        blockedApps: s.blockedApps.map((a) =>
+          a.id === id ? { 
+            ...a, 
+            antiScrollEnabled: enabled, 
+            antiScrollSeconds: seconds ?? a.antiScrollSeconds ?? 300, 
+            antiScrollWarningSeconds: warningSeconds ?? a.antiScrollWarningSeconds ?? 10 
+          } : a,
+        ),
+      })),
+    [],
+  );
+
   const toggleApp = useCallback(
     (id: string) =>
       setState((s) => ({
@@ -250,17 +269,24 @@ export function useAppState() {
     const shouldBlock = state.quickShield;
 
     const fullPkgs = state.blockedApps
-      .filter((a) => a.enabled && a.blockMode === "full")
+      .filter((a) => a.enabled && a.blockMode === "full" && !a.antiScrollEnabled)
       .map((a) => a.packageName);
     const feedPkgs = state.blockedApps
-      .filter((a) => a.enabled && a.blockMode === "feed")
+      .filter((a) => a.enabled && a.blockMode === "feed" && !a.antiScrollEnabled)
       .map((a) => a.packageName);
 
     const allowFriendPkgs = state.blockedApps
-      .filter((a) => a.allowFriendReels)
+      .filter((a) => a.enabled && a.allowFriendReels)
       .map((a) => a.packageName);
 
-    syncBlockedApps(fullPkgs, feedPkgs, shouldBlock, allowFriendPkgs).catch(() => {});
+    const antiScrollConfig: Record<string, { s: number, w: number }> = {};
+    state.blockedApps.forEach((a) => {
+      if (a.enabled && a.antiScrollEnabled && a.antiScrollSeconds != null && a.antiScrollWarningSeconds != null) {
+        antiScrollConfig[a.packageName] = { s: a.antiScrollSeconds, w: a.antiScrollWarningSeconds };
+      }
+    });
+
+    syncBlockedApps(fullPkgs, feedPkgs, shouldBlock, allowFriendPkgs, JSON.stringify(antiScrollConfig)).catch(() => {});
   }, [state.blockedApps, state.quickShield, state.schedule, loaded]);
 
   // ── Sync schedule to native so the AccessibilityService can check time ──
@@ -298,6 +324,7 @@ export function useAppState() {
     loaded,
     setQuickShield,
     setAppAllowFriendReels,
+    setAppAntiScroll,
     toggleApp,
     setAppBlockMode,
     setSchedule,

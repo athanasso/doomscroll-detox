@@ -22,6 +22,8 @@ For TikTok, Instagram, YouTube, and Facebook you can choose between:
 
 - **Block Entire App** — the app is completely inaccessible during the block window.
 - **Block Reels / Shorts** — only the addictive feed screens are blocked. Messaging, profiles, search, and other sections remain usable.
+  - **Allow Reels from Messages**: An optional configuration that prevents the app from blocking TikTok/Instagram links sent specifically through DMs by friends, avoiding accidental lockouts.
+- **Anti-Scroll Limit** — allow continuous scrolling in the app, but enforce a hard time limit per session (e.g. 15 minutes). Once time expires, a persistent non-bypassable `WindowManager` Accessibility Overlay appears forcing a 10s cooldown before lockout. Time is accurately tracked using real-time background pacing via Handler tickers.
 
 All other apps added from the installed-apps list are always fully blocked.
 

@@ -54,6 +54,11 @@ function withCopyNativeFiles(config) {
         "DoomscrollForegroundService.java",
         JAVA_DIR_RELATIVE,
       );
+      copyPluginFile(
+        androidDir,
+        "AntiscrollPopupActivity.java",
+        JAVA_DIR_RELATIVE,
+      );
 
       // XML resource
       copyPluginFile(
@@ -224,6 +229,25 @@ function withManifestMods(config) {
             "android:exported": "false",
             "android:stopWithTask": "false",
             "android:foregroundServiceType": "specialUse",
+          },
+        });
+      }
+
+      // Add AntiscrollPopupActivity declaration
+      if (!app.activity) app.activity = [];
+      const popupExists = app.activity.some(
+        (a) =>
+          a.$?.["android:name"] ===
+          `${PACKAGE_NAME}.AntiscrollPopupActivity`,
+      );
+      if (!popupExists) {
+        app.activity.push({
+          $: {
+            "android:name": `${PACKAGE_NAME}.AntiscrollPopupActivity`,
+            "android:theme": "@android:style/Theme.DeviceDefault.Light.NoActionBar",
+            "android:excludeFromRecents": "true",
+            "android:taskAffinity": "",
+            "android:launchMode": "singleInstance",
           },
         });
       }

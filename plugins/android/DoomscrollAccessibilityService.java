@@ -3,6 +3,8 @@ package com.doomscrolldetox;
 import java.util.Calendar;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 
 import org.json.JSONArray;
@@ -14,11 +16,22 @@ import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.graphics.Color;
+import android.graphics.PixelFormat;
 import android.graphics.Rect;
+import android.graphics.Typeface;
+import android.os.Handler;
+import android.os.Looper;
 import android.net.Uri;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.Gravity;
+import android.view.View;
+import android.view.WindowManager;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
 /**
  * DoomscrollAccessibilityService
@@ -75,6 +88,24 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
 
     private String lastFeedCheckPkg = "";
 
+    // Anti-Scroll Tracking
+    private static final String KEY_ANTISCROLL_CONFIG = "antiscroll_config";
+    private static final String KEY_ANTISCROLL_LOCKED = "antiscroll_locked";
+    
+    private final Map<String, AntiScrollConfig> antiScrollConfigs = new HashMap<>();
+    private final Set<String> antiScrollLocked = new HashSet<>();
+    private final Map<String, Long> antiScrollTotalMs = new HashMap<>();
+    private long currentScrollSessionStart = 0;
+
+    private static class AntiScrollConfig {
+        int seconds;
+        int warningSeconds;
+        AntiScrollConfig(int s, int w) { seconds = s; warningSeconds = w; }
+    }
+
+    private View antiscrollOverlay;
+    private android.os.CountDownTimer antiscrollTimer;
+
     // ── Lifecycle ─────────────────────────────────────────────
 
     // YouTube Shorts state tracking
@@ -87,6 +118,46 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
 
     private long lastUsageCheckMillis = 0;
 
+    private boolean wasBlockingActive = false;
+    private Handler antiScrollHandler = new Handler(Looper.getMainLooper());
+    private Runnable antiScrollTicker = new Runnable() {
+        @Override
+        public void run() {
+            boolean active = isBlockingActive();
+            if (active && !wasBlockingActive) {
+                // Blocking session just STARTING, reset any leftover timers!
+                resetAntiScrollState();
+            } else if (!active && wasBlockingActive) {
+                // Blocking session just ENDED, clear timers for next time.
+                resetAntiScrollState();
+            }
+            wasBlockingActive = active;
+
+            if (active && currentFgPackage != null && !currentFgPackage.isEmpty()) {
+                handleAntiScroll(currentFgPackage);
+            }
+            antiScrollHandler.postDelayed(this, 1000);
+        }
+    };
+
+    private void resetAntiScrollState() {
+        Log.i(TAG, "Resetting AntiScroll tracking states due to blocking toggle...");
+        antiScrollTotalMs.clear();
+        antiScrollLocked.clear();
+        currentScrollSessionStart = 0;
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        SharedPreferences.Editor editor = prefs.edit();
+        editor.remove(KEY_ANTISCROLL_LOCKED);
+        
+        for (String key : prefs.getAll().keySet()) {
+            if (key != null && key.startsWith("antiscroll_grace_end_")) {
+                editor.remove(key);
+            }
+        }
+        editor.apply();
+    }
+
     @Override
     public void onServiceConnected() {
         super.onServiceConnected();
@@ -97,7 +168,8 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
             AccessibilityServiceInfo info = new AccessibilityServiceInfo();
             info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
                     | AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
-                    | AccessibilityEvent.TYPE_VIEW_CLICKED;
+                    | AccessibilityEvent.TYPE_VIEW_CLICKED
+                    | AccessibilityEvent.TYPE_VIEW_SCROLLED;
             info.feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC;
             info.flags = AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS
                     | AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
@@ -109,6 +181,9 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
 
         refreshBlockedPackages();
         Log.i(TAG, "Initial blocks: full=" + blockedFullPackages + " feed=" + blockedFeedPackages);
+
+        // Start background ticker for active AntiScroll timing
+        antiScrollHandler.post(antiScrollTicker);
 
         DoomscrollForegroundService.start(this);
 
@@ -124,6 +199,7 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
     @Override
     public void onDestroy() {
         Log.i(TAG, "onDestroy called");
+        antiScrollHandler.removeCallbacks(antiScrollTicker);
         DoomscrollPollReceiver.cancelAlarm(this);
         super.onDestroy();
     }
@@ -140,6 +216,7 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
     @Override
     public void onInterrupt() {
         Log.d(TAG, "Service interrupted");
+        removeAntiscrollOverlay();
     }
 
     @Override
@@ -155,9 +232,17 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
         boolean isWindowChanged = (eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED);
         String cls = event.getClassName() != null ? event.getClassName().toString() : "";
 
+        // Update lastEventMillis for any event that isn't from our app or system UI
+        lastEventMillis = System.currentTimeMillis();
+
         if (isWindowChanged) {
             lastEventPkg = pkg;
-            lastEventMillis = System.currentTimeMillis();
+            
+            if (!pkg.equals(currentFgPackage)) {
+                commitScrollSession(System.currentTimeMillis());
+                currentScrollSessionStart = 0; // Truly end the session on swap
+            }
+            
             currentFgPackage = pkg;
             currentFgActivity = cls;
             Log.i(TAG, "EVENT fg=" + pkg + " cls=" + cls);
@@ -179,6 +264,10 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
                     interceptForbiddenTabClick(pkg, event);
                 }
                 tryBlock(pkg, cls, event, isWindowChanged ? "event" : "content");
+            }
+
+            if (isBlockingActive()) {
+                handleAntiScroll(pkg);
             }
         }
 
@@ -217,7 +306,7 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
     }
 
     private boolean isBlocked(String pkg) {
-        return blockedFullPackages.contains(pkg) || blockedFeedPackages.contains(pkg);
+        return blockedFullPackages.contains(pkg) || blockedFeedPackages.contains(pkg) || antiScrollLocked.contains(pkg);
     }
 
     // ── Core blocking ─────────────────────────────────────────
@@ -225,7 +314,7 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
     private void tryBlock(String pkg, String className,
             AccessibilityEvent event, String source) {
 
-        boolean isFullTarget = blockedFullPackages.contains(pkg);
+        boolean isFullTarget = blockedFullPackages.contains(pkg) || antiScrollLocked.contains(pkg);
         boolean isFeedTarget = blockedFeedPackages.contains(pkg);
         if (!isFullTarget && !isFeedTarget)
             return;
@@ -1113,11 +1202,191 @@ public class DoomscrollAccessibilityService extends AccessibilityService {
             allowFriendReelsPackages.clear();
             for (int i = 0; i < allowArr.length(); i++)
                 allowFriendReelsPackages.add(allowArr.getString(i));
+
+            String antiConfStr = prefs.getString(KEY_ANTISCROLL_CONFIG, "{}");
+            org.json.JSONObject antiJson = new org.json.JSONObject(antiConfStr);
+            antiScrollConfigs.clear();
+            for (java.util.Iterator<String> it = antiJson.keys(); it.hasNext(); ) {
+                String k = it.next();
+                org.json.JSONObject c = antiJson.getJSONObject(k);
+                antiScrollConfigs.put(k, new AntiScrollConfig(c.optInt("s", 300), c.optInt("w", 10)));
+            }
+
+            Set<String> lockedSet = prefs.getStringSet(KEY_ANTISCROLL_LOCKED, new HashSet<>());
+            antiScrollLocked.clear();
+            if (lockedSet != null) antiScrollLocked.addAll(lockedSet);
+
         } catch (JSONException e) {
             Log.e(TAG, "Error parsing blocked packages", e);
         }
         if (!blockedFullPackages.equals(oldFull) || !blockedFeedPackages.equals(oldFeed)) {
             Log.i(TAG, "Blocks updated: full=" + blockedFullPackages + " feed=" + blockedFeedPackages + " allowFriends=" + allowFriendReelsPackages);
+        }
+
+        boolean currentlyActive = isBlockingActive();
+        if (!currentlyActive && wasBlockingActive) {
+            prefs.edit()
+                .remove(KEY_ANTISCROLL_LOCKED)
+                .apply();
+            antiScrollLocked.clear();
+            antiScrollTotalMs.clear();
+            currentScrollSessionStart = 0;
+        }
+        wasBlockingActive = currentlyActive;
+    }
+
+    private void commitScrollSession(long now) {
+        if (currentScrollSessionStart > 0 && !currentFgPackage.isEmpty()) {
+            long duration = now - currentScrollSessionStart;
+            long total = antiScrollTotalMs.getOrDefault(currentFgPackage, 0L);
+            antiScrollTotalMs.put(currentFgPackage, total + duration);
+            currentScrollSessionStart = now;  // reset start to now
+        }
+    }
+
+    private void handleAntiScroll(String pkg) {
+        if (!antiScrollConfigs.containsKey(pkg)) return;
+        if (antiScrollLocked.contains(pkg)) {
+            // Already locked -> force back!
+            if (isBlockingActive() && pkg.equals(currentFgPackage)) {
+                Log.i(TAG, ">>> ANTISCROLL LOCK ACTIVE for " + pkg + ", forcing exit!");
+                performGlobalAction(GLOBAL_ACTION_BACK);
+                performGlobalAction(GLOBAL_ACTION_HOME);
+            }
+            return;
+        }
+        
+        // Block tracking updates if overlay is visible
+        if (antiscrollOverlay != null) return;
+
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        long graceEnd = prefs.getLong("antiscroll_grace_end_" + pkg, 0);
+
+        if (graceEnd > 0) {
+            if (System.currentTimeMillis() > graceEnd) {
+                // Scrolled after grace period! Lock the app
+                antiScrollLocked.add(pkg);
+                Set<String> savedLocked = new HashSet<>(prefs.getStringSet(KEY_ANTISCROLL_LOCKED, new HashSet<>()));
+                savedLocked.add(pkg);
+                prefs.edit().putStringSet(KEY_ANTISCROLL_LOCKED, savedLocked).apply();
+                
+                Log.i(TAG, ">>> ANTISCROLL LOCK triggered for " + pkg);
+                performGlobalAction(GLOBAL_ACTION_BACK);
+                performGlobalAction(GLOBAL_ACTION_HOME);
+            }
+            return; // In or past grace period, don't accumulate time anymore or show warning again.
+        }
+
+        // Limit not reached, accumulate time
+        long now = System.currentTimeMillis();
+        if (currentScrollSessionStart == 0) {
+            currentScrollSessionStart = now;
+        }
+        
+        // Update total time to include this scroll
+        commitScrollSession(now);
+
+        AntiScrollConfig config = antiScrollConfigs.get(pkg);
+        long maxMs = config.seconds * 1000L;
+        long soFar = antiScrollTotalMs.getOrDefault(pkg, 0L);
+        
+        Log.v(TAG, "Anti-scroll tracking: " + pkg + " time: " + soFar + "/" + maxMs + "ms");
+
+        if (soFar >= maxMs) {
+            Log.i(TAG, ">>> ANTISCROLL WARNING for " + pkg);
+            showAntiScrollWarning(pkg, config.warningSeconds);
+        }
+    }
+
+    private void showAntiScrollWarning(final String pkg, final int warningSeconds) {
+        if (antiscrollOverlay != null) return;
+        
+        final WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+        if (wm == null) return;
+        
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setBackgroundColor(Color.parseColor("#E53935")); // Red background
+        layout.setGravity(Gravity.CENTER);
+        layout.setPadding(80, 80, 80, 80);
+
+        TextView title = new TextView(this);
+        title.setText("Time to Stop Scrolling?");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(26);
+        title.setTypeface(null, Typeface.BOLD);
+        title.setGravity(Gravity.CENTER);
+        layout.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("You've exceeded your Doom Zone limits.");
+        sub.setTextColor(Color.WHITE);
+        sub.setTextSize(18);
+        sub.setGravity(Gravity.CENTER);
+        sub.setPadding(0, 20, 0, 80);
+        layout.addView(sub);
+
+        final Button btn = new Button(this);
+        btn.setText("Wait (" + warningSeconds + "s)");
+        btn.setTextColor(Color.parseColor("#E53935"));
+        btn.setBackgroundColor(Color.WHITE);
+        btn.setEnabled(false);
+        layout.addView(btn);
+
+        WindowManager.LayoutParams params = new WindowManager.LayoutParams(
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.MATCH_PARENT,
+                WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                PixelFormat.TRANSLUCENT);
+        
+        try {
+            wm.addView(layout, params);
+            antiscrollOverlay = layout;
+        } catch (Exception e) {
+            Log.e(TAG, "Failed to add popup overlay", e);
+            return;
+        }
+
+        antiscrollTimer = new android.os.CountDownTimer(warningSeconds * 1000L, 1000) {
+            @Override
+            public void onTick(long millisUntilFinished) {
+                int sec = (int) (millisUntilFinished / 1000);
+                btn.setText("Wait (" + sec + "s)");
+            }
+
+            @Override
+            public void onFinish() {
+                btn.setText("I Understand (10s Grace)");
+                btn.setEnabled(true);
+            }
+        }.start();
+
+        btn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                removeAntiscrollOverlay();
+                
+                SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                long graceEnd = System.currentTimeMillis() + (10 * 1000L);
+                prefs.edit().putLong("antiscroll_grace_end_" + pkg, graceEnd).apply();
+                
+                currentScrollSessionStart = System.currentTimeMillis();
+            }
+        });
+    }
+
+    private void removeAntiscrollOverlay() {
+        if (antiscrollOverlay != null) {
+            try {
+                WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+                if (wm != null) wm.removeView(antiscrollOverlay);
+            } catch (Exception e) {}
+            antiscrollOverlay = null;
+        }
+        if (antiscrollTimer != null) {
+            antiscrollTimer.cancel();
+            antiscrollTimer = null;
         }
     }
 }

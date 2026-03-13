@@ -141,18 +141,23 @@ public class DoomscrollForegroundService extends Service {
         String title;
         String text;
 
-        // Count enabled blocked apps
-        String fullJson = prefs.getString("blocked_packages_full", "[]");
-        String feedJson = prefs.getString("blocked_packages_feed", "[]");
-        int appCount = 0;
+        // Count enabled blocked apps via unique set to deduplicate
+        java.util.HashSet<String> uniqueBlockedApps = new java.util.HashSet<>();
         try {
-            org.json.JSONArray fullArr = new org.json.JSONArray(fullJson);
-            appCount += fullArr.length();
+            org.json.JSONArray fullArr = new org.json.JSONArray(prefs.getString("blocked_packages_full", "[]"));
+            for (int i = 0; i < fullArr.length(); i++) uniqueBlockedApps.add(fullArr.getString(i));
         } catch (Exception ignored) {}
         try {
-            org.json.JSONArray feedArr = new org.json.JSONArray(feedJson);
-            appCount += feedArr.length();
+            org.json.JSONArray feedArr = new org.json.JSONArray(prefs.getString("blocked_packages_feed", "[]"));
+            for (int i = 0; i < feedArr.length(); i++) uniqueBlockedApps.add(feedArr.getString(i));
         } catch (Exception ignored) {}
+        try {
+            org.json.JSONObject antiObj = new org.json.JSONObject(prefs.getString("antiscroll_config", "{}"));
+            java.util.Iterator<String> keys = antiObj.keys();
+            while (keys.hasNext()) uniqueBlockedApps.add(keys.next());
+        } catch (Exception ignored) {}
+        
+        int appCount = uniqueBlockedApps.size();
         String appLabel = appCount == 1 ? "1 app" : appCount + " apps";
 
         if (quickShield) {

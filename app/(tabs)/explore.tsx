@@ -32,7 +32,7 @@ interface InstalledApp {
 }
 
 export default function AppSelectorScreen() {
-  const { state, toggleApp, setAppBlockMode, addApp, removeApp, setAppAllowFriendReels } = useAppCtx();
+  const { state, toggleApp, setAppBlockMode, addApp, removeApp, setAppAllowFriendReels, setAppAntiScroll } = useAppCtx();
   const [showAddModal, setShowAddModal] = useState(false);
 
   return (
@@ -121,11 +121,74 @@ export default function AppSelectorScreen() {
                             Don't block Reels/Shorts shared by friends in messages
                           </Text>
                         </View>
+                        <View style={{ transform: [{ scale: 0.8 }] }}>
+                          <GlowToggle
+                            value={!!app.allowFriendReels}
+                            onValueChange={(val) => setAppAllowFriendReels(app.id, val)}
+                            activeColor={Brand.accent}
+                          />
+                        </View>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {app.enabled && (
+                <View style={styles.modeCol}>
+                  <View style={[styles.friendReelsRow, isDefault ? {} : { borderTopWidth: 0, marginTop: 0, paddingTop: 0 }]}>
+                      <View style={styles.appNameCol}>
+                        <Text style={styles.friendReelsName}>Anti-Scroll Limit</Text>
+                        <Text style={styles.friendReelsPkg}>
+                          {app.antiScrollEnabled 
+                            ? `Continuous scrolling limited` 
+                            : "Off"}
+                        </Text>
+                      </View>
+                      <View style={{ transform: [{ scale: 0.8 }] }}>
                         <GlowToggle
-                          value={!!app.allowFriendReels}
-                          onValueChange={(val) => setAppAllowFriendReels(app.id, val)}
+                          value={!!app.antiScrollEnabled}
+                          onValueChange={(val) => {
+                            setAppAntiScroll(app.id, val, app.antiScrollSeconds || 300, app.antiScrollWarningSeconds || 10);
+                          }}
                           activeColor={Brand.accent}
                         />
+                      </View>
+                  </View>
+
+                  {app.antiScrollEnabled && (
+                    <View style={{ marginTop: 10 }}>
+                       <View>
+                         <Text style={{ color: Brand.muted, fontSize: 12, marginBottom: 8 }}>Scroll Limit</Text>
+                         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                           {[60, 300, 600, 900, 1800].map(sec => (
+                             <Pressable 
+                               key={sec} 
+                               onPress={() => setAppAntiScroll(app.id, true, sec, app.antiScrollWarningSeconds)}
+                               style={[styles.modeBtn, { flex: 0, paddingVertical: 6, paddingHorizontal: 12 }, (app.antiScrollSeconds || 300) === sec ? styles.modeBtnActive : {}]}
+                             >
+                               <Text style={[styles.modeBtnText, (app.antiScrollSeconds || 300) === sec ? styles.modeBtnTextActive : {}]}>
+                                 {sec < 60 ? `${sec} sec` : `${sec / 60} min`}
+                               </Text>
+                             </Pressable>
+                           ))}
+                         </View>
+                       </View>
+                       <View style={{ marginTop: 14 }}>
+                         <Text style={{ color: Brand.muted, fontSize: 12, marginBottom: 8 }}>Popup Timer (grace period)</Text>
+                         <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                           {[5, 10, 15, 30].map(sec => (
+                             <Pressable 
+                               key={sec} 
+                               onPress={() => setAppAntiScroll(app.id, true, app.antiScrollSeconds, sec)}
+                               style={[styles.modeBtn, { flex: 0, paddingVertical: 6, paddingHorizontal: 12 }, (app.antiScrollWarningSeconds || 10) === sec ? styles.modeBtnActive : {}]}
+                             >
+                               <Text style={[styles.modeBtnText, (app.antiScrollWarningSeconds || 10) === sec ? styles.modeBtnTextActive : {}]}>
+                                 {sec} sec
+                               </Text>
+                             </Pressable>
+                           ))}
+                         </View>
+                       </View>
                     </View>
                   )}
                 </View>
@@ -372,18 +435,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginTop: 16,
-    paddingTop: 16,
+    marginTop: 10,
+    paddingTop: 10,
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.05)",
   },
   friendReelsName: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: "600",
     color: Brand.textBright,
   },
   friendReelsPkg: {
-    fontSize: 12,
+    fontSize: 10,
     color: Brand.muted,
     marginTop: 2,
   },
